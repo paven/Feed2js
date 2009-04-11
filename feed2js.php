@@ -162,17 +162,17 @@ $feed->handle_content_type();
 $str= "document.write('<div class=\"rss-box" . $rss_box_id . "\">');\n";
 
 
-// no feed found by magpie, return error statement
+// no feed found by simplepie, return error statement
 if  (!$success) {
 	$str.= "document.write('<p class=\"rss-item\">$script_msg<em>Error:</em> Feed failed! Causes may be (1) No data  found for RSS feed $src; (2) There are no items are available for this feed; (3) The RSS feed does not validate.<br /><br /> Please verify that the URL <a href=\"$src\">$src</a> works first in your browser and that the feed passes a <a href=\"http://feedvalidator.org/check.cgi?url=" . urlencode($src) . "\">validator test</a>.</p></div>');\n";
 
 
 } else {
 
-	// for LAB versions only!
-	$str.= "document.write('<h2>DEV VERSION ONLY DO NOT USE FOR REAL SITES</h2>');\n";
-	// set cache location
+	// set cache location and age
 	$feed->set_cache_location(CACHE_DIR); 
+	$feed->set_cache_duration(CACHE_AGE);
+
 
 	// Create CONNECTION CONFIRM
 	// create output string for local javascript variable to let 
@@ -185,14 +185,14 @@ if  (!$success) {
 		// double check the feed provides a link, some still mess this up
 		if ($feed->get_link()) {
 		// output channel title and description	
-			$str.= "document.write('<p class=\"rss-title\"><a class=\"rss-title\" href=\"" . trim($feed->get_link()) . '"' . $target_window . ">" . addslashes(strip_returns($feed->get_title())) . "</a><br /><span class=\"rss-item\">" . addslashes(strip_returns(strip_tags($feed->get_description()))) . "</span></p>');\n";
+			$str.= "document.write('<p class=\"rss-title\"><a class=\"rss-title\" href=\"" . trim($feed->get_link()) . '"' . $target_window . ">" . strip_returns($feed->get_title()) . "</a><br /><span class=\"rss-item\">" . strip_returns(strip_tags($feed->get_description())) . "</span></p>');\n";
 		} else {
-			$str.= "document.write('<p class=\"rss-title\">" .  addslashes(strip_returns($feed->get_title())) . "<br /><span class=\"rss-item\">" . addslashes(strip_returns(strip_tags($feed->get_description()))) . "</span></p>');\n";	
+			$str.= "document.write('<p class=\"rss-title\">" .  strip_returns($feed->get_title()) . "<br /><span class=\"rss-item\">" . strip_returns(strip_tags($feed->get_description())) . "</span></p>');\n";	
 		}
 	
 	} elseif ($chan == 'title') {
 		// output title only
-		$str.= "document.write('<p class=\"rss-title\"><a class=\"rss-title\" href=\"" . trim($feed->get_link()) . '"' . $target_window . ">" . addslashes(strip_returns($feed->get_title())) . "</a></p>');\n";
+		$str.= "document.write('<p class=\"rss-title\"><a class=\"rss-title\" href=\"" . trim($feed->get_link()) . '"' . $target_window . ">" . strip_returns($feed->get_title()) . "</a></p>');\n";
 	
 	}	
 	
@@ -207,7 +207,7 @@ if  (!$success) {
 		
 		if ($item->get_permalink()) {
 			// link url
-			$my_url = addslashes($item->get_permalink());
+			$my_url = $item->get_permalink();
 		}
 		
 		
@@ -216,11 +216,11 @@ if  (!$success) {
 			
 		} elseif ($item->get_title()) {
 			// format item title
-			$my_title = addslashes(strip_returns($item->get_title()));
+			$my_title = strip_returns($item->get_title());
 						
 			// create a title attribute. thanks Seb!
-			$title_str = substr(addslashes(strip_returns(strip_tags((htmlspecialchars($item->get_description()
-))))), 0, 255) . '...'; 
+			$title_str = substr(strip_returns(strip_tags((htmlspecialchars($item->get_description()
+)))), 0, 255) . '...'; 
 
 			// write the title strng
 			$str.= "document.write('<li class=\"rss-item\"><a class=\"rss-item\" href=\"" . trim($my_url) . "\" title=\"$title_str\"". $target_window . '>' . $my_title . "</a><br />');\n";
@@ -280,7 +280,7 @@ if  (!$success) {
 			}
 	
 		
-			$str.= "document.write('" . addslashes(strip_returns($my_blurb, $br)) . "');\n"; 
+			$str.= "document.write('" . strip_returns($my_blurb, $br) . "');\n"; 
 			
 		}
 			

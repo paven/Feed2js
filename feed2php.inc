@@ -6,24 +6,18 @@
 	same functionality of our Feed2JS concept, but without
 	the need to generate content via JavaScript
 	
-	Developed by Alan Levine 04.aug.2004
+	Developed by Alan Levine initially released 13.may.2004
 	http://cogdogblog.com/
 	
-	This is a modified version of Fee22JS and merely replaces
-	the output of Javascript to that for a PHP. See the original
-	feed2js.php for change history.
+	PRIMARY SITE:
+	http://feed2js.org/
 	 
 	USAGE:
-	See http://feed2js.org/index.php?s=php
-		
-	HISTORY
-    See:
-      http://feed2js.org/index.php?s=history
-    
+	See http://eduforge.org/projects/feed2js/
+     
+	Feed2JS makes use of the SimplePie RSS from
+	 http://simplepie.org/
 
-	
-	This makes use of the Magpie RSS parser from
-	 http://magpierss.sourceforge.net/
 	 
    ------------- small print ---------------------------------------
 	GNU General Public License 
@@ -44,22 +38,22 @@
 
 require_once('feed2js_config.php');
 
-/// trap for missing src param for the feed, use a dummy one so it gets displayed.
+// trap for missing src param for the feed, use a dummy one so it gets displayed.
 
 if (!$src or strpos($src, 'http://')!=0) $src=  'http://' . $_SERVER['SERVER_NAME'] . dirname($_SERVER['PHP_SELF']) . '/nosource.rss';
 
+// PARSER SETUP ----------------------------------------------------
+// access configuration settings
+require_once('feed2js_config.php');
+
 //  check for utf encoding type
-if (!isset($utf)) $utf = 'n';
+$utf = (isset($_GET['utf'])) ? $_GET['utf'] : 'n';
 
 if ($utf == 'y') {
-	define('MAGPIE_CACHE_DIR', MAGPIE_DIR . 'cache_utf8/');
-	// character encoding
-	define('MAGPIE_OUTPUT_ENCODING', 'UTF-8');
-
-} else {
-	define('MAGPIE_CACHE_DIR', MAGPIE_DIR . 'cache/');
-	
+	define('OUTPUT_ENCODING', 'UTF-8');
 }
+
+
 
 
 // GET VARIABLES ---------------------------------------------
@@ -136,144 +130,127 @@ if (isset($pc)) {
 // PARSE FEED and GENERATE OUTPUT -------------------------------
 // This is where it all happens!
 
-// Fetch the data, thanks Magpie
-$rss = @fetch_rss( $src );
+// Create a new instance of the SimplePie object
+$feed = new SimplePie();
+
+$feed->set_feed_url($src);
+
+
+// set utf encoding
+if ($utf=='y') {
+	$feed->set_output_encoding(OUTPUT_ENCODING);
+}
+
+// Initialize the whole SimplePie object.  Read the feed, process it, parse it, cache it, and 
+// all that other good stuff.  The feed's information will not be available to SimplePie before 
+// this is called.
+$success = $feed->init();
+
+// We'll make sure that the right content type and character encoding gets set automatically.
+// This function will grab the proper character encoding, as well as set the content type to text/html.
+$feed->handle_content_type();
+
 
 // begin javascript output string for channel info
 $str = "<div class=\"rss-box" . $rss_box_id . "\">\n";
 
-// no feed found by magpie, return error statement
-if  (!$rss) {
+// no feed found by simplepie, return error statement
+if  (!$success) {
 	// error, nothing grabbed
 	$str.= "<p class=\"rss-item\"><em>Error:</em> Feed failed! Causes may be (1) No data  found for RSS feed $src; (2) There are no items are available for this feed; (3) The RSS feed does not validate.<br /><br /> Please verify that the URL <a href=\"$src\">$src</a> works first in your browser and that the feed passes a <a href=\"http://feedvalidator.org/check.cgi?url=" . urlencode($src) . "\">validator test</a>.</p>\n";
 } else {
 
+
+	// set cache location and age
+	$feed->set_cache_location(CACHE_DIR); 
+	$feed->set_cache_duration(CACHE_AGE);
+
+	// we have a feed, so let's process
 	if ($chan == 'y') {
-	
+	// double check the feed provides a link, some still mess this up
+		if ($feed->get_link()) {
 		// output channel title and description	
-		$str.= "<p class=\"rss-title\"><a class=\"rss-title\" href=\"" . trim($rss->channel['link']) . "\" target=\"" . $target_window . "\">" . strip_returns($rss->channel['title']) . "</a><br /><span class=\"rss-item\">" . strip_returns($rss->channel['description']) . "</span></p>\n";
+			$str.= "<p class=\"rss-title\"><a class=\"rss-title\" href=\"" . trim($feed->get_link()) . '"' . $target_window . ">" . addslashes(strip_returns($feed->get_title())) . "</a><br /><span class=\"rss-item\">" . addslashes(strip_returns(strip_tags($feed->get_description()))) . "</span></p>\n";
+		} else {
+			$str.= "<p class=\"rss-title\">" .  addslashes(strip_returns($feed->get_title())) . "<br /><span class=\"rss-item\">" . addslashes(strip_returns(strip_tags($feed->get_description()))) . "</span></p>\n";	
+		}
 	
 	} elseif ($chan == 'title') {
 		// output title only
-		$str.= "<p class=\"rss-title\"><a class=\"rss-title\" href=\"" . trim($rss->channel['link']) . "\" target=\"" . $target_window . "\">" . strip_returns($rss->channel['title']) . "</a></p>\n";
+		$str.= "<p class=\"rss-title\"><a class=\"rss-title\" href=\"" . trim($feed->get_link()) . '"' . $target_window . ">" . addslashes(strip_returns($feed->get_title())) . "</a></p>'\n";
 	
 	}	
-	
-	// begin item listing
-	$str.= "<ul class=\"rss-items\">\n";
-	
-	
+
 	// Walk the items and process each one
-	$all_items = array_slice($rss->items, 0, $num);
+	$all_items = array_slice($feed->get_items(), 0, $num);
+
+	$str.= "<ul class=\"rss-items\">\n";
 	
 	foreach ( $all_items as $item ) {
 		
-		if ($item['link']) {
+		if ($item->get_permalink()) {
 			// link url
-			$my_url = $item['link'];
-		} elseif  ($item['guid']) {
-			//  feeds lacking item -> link
-			$my_url = ($item['guid']);
+			$my_url = addslashes($item->get_permalink());
 		}
 		
 		
 		if ($desc < 0) {
 			$str.= "<li class=\"rss-item\">\n";
 			
-		} elseif  ($item['title']) {
+		} elseif ($item->get_title()) {
 			// format item title
-			$my_title = strip_returns($item['title']);
-
+			$my_title = addslashes(strip_returns($item->get_title()));
+						
 			// create a title attribute. thanks Seb!
-			$title_str = substr(strip_returns(strip_tags($item['summary'])), 0, 255) . '...'; 
+			$title_str = substr(addslashes(strip_returns(strip_tags((htmlspecialchars($item->get_description()
+))))), 0, 255) . '...'; 
 
-			// write the item
-			$str.= "<li class=\"rss-item\"><a class=\"rss-item\" href=\"" . trim($my_url) . "\"  title=\"$title_str\"" . $target_window . ">" . $my_title . "</a><br />\n";
+			// write the title strng
+			$str.= "<li class=\"rss-item\"><a class=\"rss-item\" href=\"" . trim($my_url) . "\" title=\"$title_str\"". $target_window . '>' . $my_title . "</a><br />\n";
 
 		} else {
 			// if no title, build a link to tag on the description
 			$str.= "<li class=\"rss-item\">\n";
-			$more_link = " <a class=\"rss-item\" href=\"" .trim($my_url) . '"' . $target_window . ">&laquo;details&raquo;</a>";
+			$more_link = " <a class=\"rss-item\" href=\"" . trim($my_url) . '"' . $target_window . ">&laquo;details&raquo;</a>";
 		}
-
 	
-		// print out date if option indicated and feed returns a value. 
-		// Use the new date_timestamp function in Magpie 0.71
+		// print out date if option indicated
+
 		if ($date == 'y') {
+					
 			if ($tz == 'feed') {
-			//   echo the date/time stamp reported in the feed
-
-				if ($item['pubdate'] != '') {
-					// RSS 2.0 is already formatted, so just use it
-					$pretty_date = 'published on ' . $item['pubdate'];
-				} elseif ($item['published'] != "") {
-					// ATOM 1.0 format, remove the "T" and "Z" and the time zone offset
-					$pretty_date = str_replace("T", " ", $item['published']);
-					$pretty_date= 'published on ' . str_replace("Z", " ", $pretty_date);
-	
-				} elseif ($item['issued'] != "") {
-					// ATOM 0.3 format, remove the "T" and "Z" and the time zone offset
-					$pretty_date = str_replace("T", " ", $item['issued']);
-					$pretty_date= 'published on ' . str_replace("Z", " ", $pretty_date);
-				} elseif ( $item['dc']['date'] != "") {
-					// RSS 1.0, remove the "T" and the time zone offset
-					$pretty_date = str_replace("T", " ", $item['dc']['date']);
-					$pretty_date = 'published on ' . substr($pretty_date, 0,-6);
-				} else {
-				
-					// no time/date stamp, just use the server time
-					$pretty_date =  'published date n/a';
-				}
-
+				$pretty_date = $item->get_date($date_format);
 			} else {
 				// convert to local time via conversion to GMT + offset
-				
 				// adjust local server time to GMT and then adjust time according to user
 				// entered offset.
 				
-				$pretty_date = 'published on ' . date($date_format, $item['date_timestamp'] - $tz_offset + $tz * 3600);
+				$pretty_date = date($date_format, strtotime($item->get_date())  - $tz_offset + $tz * 3600);
 			
 			}
 	
-
-
 			$str.= "<span class=\"rss-date\">$pretty_date</span><br />\n"; 
 		}
 
-		// link to podcast media if available
+		// link to podcast media if availavle
 		
-		if ($play_podcast == 'y' and is_array($item['enclosure'])) {
-			$str.= "<div class=\"pod-play-box\">Media: ";
-			
-			for ($i = 0; $i < count($item['enclosure']); $i++) {
-			
-				// display only if enclosure is a valid URL
-				//if (strpos($item['enclosure'][$i]['url'], 'http://')!=0) {
-					$str.= "<a class=\"pod-play\"><a href=\"" . trim($item['enclosure'][$i]['url']) . "\" title=\"Play Now\" target=\"_blank\"><em>Play</em> <span>" .  substr(trim($item['enclosure'][$i]['url']), -3)  . "</span></a> ";
+		if ($play_podcast == 'y' and $enclosure = $item->get_enclosure(0)) {
+			$str.= "<div class=\"pod-play-box\">\n";
+			foreach ($item->get_enclosures() as $enclosure) {
+					$str.= "<a class=\"pod-play\" href=\"" . trim($enclosure->get_link()) . "\" title=\"Play Now\" target=\"_blank\"><em>Play</em> <span> " .  substr(trim($enclosure->get_link()), -3)  . "</span></a> \n";
 				//}
-		
 			}
-				$str.= "</div>";
+			
+			$str.= "</div>\n";
 		
 		}
 
-
-		
 	
 		// output description of item if desired
 		if ($desc) {
-
-		 	// Atom/encoded content support (thanks David Carter-Tod)
-
-			if ($item['content']['encoded']) {
-				$my_blurb = html_entity_decode ( $item['content']['encoded'], ENT_NOQUOTES);
+			
+			$my_blurb = $item->get_content() ;
 	
-			} else {   
-				$my_blurb = $item['summary'];
-			}
-
-
-
 			// strip html
 			if ($html != 'a') $my_blurb = strip_tags($my_blurb);
 			
@@ -284,13 +261,19 @@ if  (!$rss) {
 				//   html is stripped to prevent cut off tags
 				$my_blurb = substr($my_blurb, 0, $desc) . '...';
 			}
-
-			$str.= strip_returns($my_blurb, $br) . "\n"; 
+	
+		
+			$str.= "" . addslashes(strip_returns($my_blurb, $br)) . "\n"; 
+			
 		}
 			
 		$str.= "$more_link</li>\n";	
 	}
+
+
+
 }
+
 
 $str .= "</ul></div>\n";
 echo $str;

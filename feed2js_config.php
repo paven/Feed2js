@@ -7,13 +7,16 @@
 	See main script for all the gory details
 	
 	created 10.sep.2004
-	updated 28.mar.2007
+	updated 10.apr.2009
 */
 
 
 // SIMPLEPIE SET UP ---------------------------------------------
-
+// set location of cache directory
 define('CACHE_DIR',  './cache');
+
+// default cache time is one hour
+define('CACHE_AGE',  3600);
 
 // Simple pie library
 include_once('./simplepie.inc');
@@ -36,8 +39,8 @@ $tz_offset = gmmktime(0,0,0,1,1,1970) - mktime(0,0,0,1,1,1970);
 // Report all errors except E_NOTICE
 // This is the default value set in php.ini for Apache but often not Windows
 // We recommend changing the value to 0 once your scripts are working
-//ini_set('display_errors', 1);
-//ini_set('error_reporting', E_ALL^ E_NOTICE);
+ini_set('display_errors', 1);
+ini_set('error_reporting', E_ALL^ E_NOTICE);
 
 
 // Utility to remove return characters from strings that might
